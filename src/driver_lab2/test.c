@@ -18,7 +18,7 @@ int main (void)
 	int fd;
 	char buff[256]="QWERTYUIOPasdfghjklZXCVBNM";
 	
-	fd = open ("/dev/togglecase",O_RDWR);
+	fd = open ("/dev/toggle-case",O_RDWR);
 	if (fd < 0) 
 	{
 	  perror ("fd open failed");
@@ -28,7 +28,7 @@ int main (void)
 	printf ("\n/dev/hello opened, fd=%d\n",fd);
 	printf ("buf to write is:\n%s\n", buff);
 	
-	if (write (fd, buff, strlen(buff)) < 0)
+	if (write (fd, buff, strlen(buff) + 1) < 0)
 	{
 		perror("fail to write");
 		close(fd);
@@ -36,7 +36,7 @@ int main (void)
 	}
    
         // I'm lazy, buff will be modified, but not now.
-	if (read (fd, buff, strlen(buff)) < 0)
+	if (read (fd, buff, strlen(buff) + 1) < 0)
 	{
 		perror("fail to write");
 		close(fd);

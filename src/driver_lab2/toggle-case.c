@@ -16,36 +16,41 @@
 #include <linux/init.h>
 #include <linux/fs.h>
 #include <linux/cdev.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
+#include <linux/slab.h>		/* kmalloc() */
+
 
 MODULE_AUTHOR("USTC");
 MODULE_LICENSE ("GPL");
 
 #define TC_MAJOR 250
 #define TC_MINOR 0
-#define TC_NUM 4
-#define TC_BUF_SIZE 256
+#define TC_NUM 1
+#define TC_MAX_BUF_SIZE 256
 
-//ichar data[128] = "foobar not equal to barfoo";
+typedef struct toggle_case{
+    char buf[TC_MAX_BUF_SIZE];
+    int  w_offset; // offset to write
+    int  offset;   // offset to read
+    int  size;
+    struct cdev cdev;
+} tc;
 
-/*
- * TODO: in my opinion, we should alloc them dynamically, and get them by inode pointer.
- * Maybe my opinion above is wrong, it's useless here.
- */
-static struct toggle_case{
-    char buf[TC_BUF_SIZE];
-    int  offset;
-} tc[TC_NUM] = {0};
-
+static tc * tc_devices;
+char tmp[256];
 static dev_t devno;
-static struct cdev cdev;
 
 /*
- * TODO:we should check if we can open this device.
+ * TODO:Should we check if we can open this device?
  */
-static int tc_open (struct inode *inode, struct file *file)
+int tc_open(struct inode *inode, struct file *filp)
 {
-  return 0;
+    tc  *dev; /* device information */
+
+    dev = container_of(inode->i_cdev, tc, cdev);
+    filp->private_data = dev; /* for other methods */
+
+    return 0;
 }
 
 /*
@@ -56,51 +61,95 @@ static int tc_release (struct inode *inode, struct file *file)
   return 0;
 }
 
-ssize_t tc_read (struct file *filp, char *buff, size_t count, loff_t *offp)
+ssize_t tc_read (struct file *filp, char *buf, size_t count, loff_t *offp)
 {
-#if 0
-  ssize_t result = 0;
-  
-  if (count > 127) count = 127;
+    tc *dev = filp->private_data;
+    
+    if (count == 0)
+    {
+        return 0;
+    }
 
-  if (copy_to_user (buff, data, count)) 
-  {
-    result = -EFAULT;
-  }
-  else
-  {
-    printk (KERN_INFO "wrote %d bytes\n", count);
-	result = count;
-  }
-   
-  return result;
-#endif
+    count = count > dev->size ? dev->size : count;
+
+    if (dev->offset + count > TC_MAX_BUF_SIZE)
+    {
+        if (copy_to_user (buf, dev->buf + dev->offset, TC_MAX_BUF_SIZE-dev->offset) != 0)
+	{
+	    return -EFAULT;
+	}
+	if (copy_to_user (buf + TC_MAX_BUF_SIZE - dev->offset, dev->buf, count - (TC_MAX_BUF_SIZE-dev->offset)) != 0)
+	{
+	    return -EFAULT;
+	}
+	dev->offset = (dev->offset + count) % TC_MAX_BUF_SIZE;
+	dev->size = dev->size - count;
+    }
+    else
+    {
+        if (copy_to_user (buf, dev->buf + dev->offset, count) != 0)
+	{
+	    return -EFAULT;
+	}
+        dev->offset = (dev->offset + count) % TC_MAX_BUF_SIZE;
+        dev->size = dev->size - count;
+    }
+
+    return count;
+}
+
+static void toggle(char *begin, int length)
+{
+    int i;
+    for (i=0; i<length; i++)
+    {
+        if (begin[i] >= 'A' && begin[i] <= 'Z')
+        {
+            begin[i]=begin[i]-'A'+'a';
+        }
+        else if (begin[i] >= 'a' && begin[i] <= 'z')
+        {
+            begin[i]=begin[i]+'A'-'a';
+        }
+        else
+        {
+            ;
+        } 
+    }
 }
 
 ssize_t tc_write (struct file *filp, const char  *buf, size_t count, loff_t *f_pos)
 {
-#if 0
-  ssize_t ret = 0;
+    tc *dev = filp->private_data;
+  
+    count = count > (TC_MAX_BUF_SIZE - dev->size) ? (TC_MAX_BUF_SIZE - dev->size) : count ;
 
-  //printk (KERN_INFO "Writing %d bytes\n", count);
-  if (count > 127) return -ENOMEM;
-  if (copy_from_user (data, buf, count)) {
-    ret = -EFAULT;
-  }
-  else {
-    data[count] = '\0';
-	int i=0;
-	for (i=0;i<count;i++){
-	   data[i]=data[i]+'A'-'a' ;
+    if (dev->w_offset + count > TC_MAX_BUF_SIZE)
+    {
+        if (copy_from_user (dev->buf + dev->w_offset, buf,  TC_MAX_BUF_SIZE-dev->w_offset) != 0)
+	{
+	    return -EFAULT;
 	}
-    printk (KERN_INFO"Received: %s\n", data);
-    ret = count;
-  }
-
-  printk("ret = %x\n",ret);
-
-  return ret;
-#endif
+	toggle (dev->buf + dev->w_offset,  TC_MAX_BUF_SIZE-dev->w_offset);
+        if (copy_from_user (dev->buf,buf + TC_MAX_BUF_SIZE-dev->w_offset, count - (TC_MAX_BUF_SIZE-dev->w_offset)) != 0)
+	{
+	    return -EFAULT;
+	}
+        toggle (dev->buf, count - (TC_MAX_BUF_SIZE-dev->w_offset));
+	dev->w_offset = (dev->w_offset + count) % TC_MAX_BUF_SIZE;
+        dev->size = dev->size + count;
+    }
+    else
+    {
+        if (copy_from_user (dev->buf + dev->w_offset, buf, count) != 0)
+	{
+	    return -EFAULT;
+	}
+        toggle (dev->buf + dev->w_offset, count);
+	dev->w_offset = (dev->w_offset + count) % TC_MAX_BUF_SIZE;
+        dev->size = dev->size + count;
+    }        
+    return count;
 }
 
 
@@ -116,41 +165,68 @@ struct file_operations tc_fops = {
  * init cdev and call cdev_add;
  * TODO: know what does the kernel really do.
  */
-static void tc_setup(void)
+static void tc_setup_cdev(tc *dev, int index)
 {
-    int error;
-    cdev_init (&cdev, &tc_fops);
-    cdev.owner = THIS_MODULE;
-    error = cdev_add (&cdev, devno , TC_NUM);
-    if (error)
+    int err;
+    
+    cdev_init(&dev->cdev, &tc_fops);
+    dev->cdev.owner = THIS_MODULE;
+    dev->cdev.ops = &tc_fops;
+    err = cdev_add (&dev->cdev, devno + index, 1);
+    
+    if (err)
     {
-        printk (KERN_NOTICE "Error %d adding char_reg_setup_cdev", error);
+        printk(KERN_NOTICE "Error %d adding tc%d", err, index);
     }
+
     return;
 }
 
 static int __init tc_init (void)
 {
-  int result;
+    int result, i;
 
-  result= alloc_chrdev_region(&devno,0, 3,"toggle-case");
+    result= alloc_chrdev_region(&devno, 0, TC_NUM,"toggle-case");
 
-  if (result < 0) {
-    printk ("ERROR:%s %d, can't get devno\n", __FUNCTION__, __LINE__);
-    return result;
-  }
+    if (result < 0) 
+    {
+        printk ("ERROR:%s %d, can't get devno\n", __FUNCTION__, __LINE__);
+        return result;
+    }
 
-  tc_setup ();
-  printk (KERN_INFO "char device registered\n");
+    tc_devices = kmalloc(TC_NUM * sizeof(tc), GFP_KERNEL);
+    if (tc_devices == NULL)
+    {
+        printk("ERROR:%s %d, kmalloc failed\n", __FUNCTION__, __LINE__);
+    }
+
+    for (i = 0; i < TC_NUM; i++) 
+    {
+	tc_devices[i].w_offset = 0;
+        tc_devices[i].offset = 0;
+        tc_devices[i].size = 0;
+        tc_setup_cdev(&tc_devices[i], i);
+    }
+    printk (KERN_INFO "char device registered\n");
   
-  return 0;
+    return 0;
 }
 
 static void __exit tc_exit (void)
 {
-  cdev_del (&cdev);
+    int i;
 
-  unregister_chrdev_region (devno, TC_NUM);
+    if (tc_devices) 
+    {
+        for (i = 0; i < TC_NUM; i++) 
+	{
+            cdev_del(&tc_devices[i].cdev);
+        }
+
+        kfree(tc_devices);
+    }
+
+    unregister_chrdev_region(devno, TC_NUM);
 }
 
 module_init (tc_init);
