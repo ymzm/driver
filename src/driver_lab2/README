@@ -27,7 +27,10 @@ To load the module, do (as root):
 
 Create a device file using:
 
-  # mknod /dev/togglecase c 250 0
+1. get the major  
+  # cat /proc/devices | grep toggle-case 
+
+  # mknod /dev/toggle-case c major 0
 
 Provide executable permissions to test, and run the application to test it:
 
