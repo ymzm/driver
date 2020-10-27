@@ -29,7 +29,7 @@ Create a device file using:
 
 1. get the major  
   # cat /proc/devices | grep toggle-case 
-
+2. mknod
   # mknod /dev/toggle-case c major 0
 
 Provide executable permissions to test, and run the application to test it:
@@ -39,7 +39,7 @@ Provide executable permissions to test, and run the application to test it:
 To remove the module, do (as root):
 
   # rmmod toggle-case
-  # rm /dev/togglecase
+  # rm /dev/toggle-case
 
 Kernel log messages can be viewed from the output of dmesg.
 
