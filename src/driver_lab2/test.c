@@ -5,6 +5,7 @@
  *
  * Copyright (C) 2020 USTC
  *
+ * by howif,dzw
  */
 
 #include <stdio.h>
@@ -35,7 +36,6 @@ int main (void)
 		exit(-1);
 	}
    
-        // I'm lazy, buff will be modified, but not now.
 	if (read (fd, buff, strlen(buff) + 1) < 0)
 	{
 		perror("fail to write");
