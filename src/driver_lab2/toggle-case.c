@@ -1,5 +1,5 @@
 /*
- * char-read.c
+ * togggle-case.c
  *
  * Character driver with toggle case
  *
@@ -23,8 +23,6 @@
 MODULE_AUTHOR("USTC");
 MODULE_LICENSE ("GPL");
 
-#define TC_MAJOR 250
-#define TC_MINOR 0
 #define TC_NUM 1
 #define TC_MAX_BUF_SIZE 256
 
