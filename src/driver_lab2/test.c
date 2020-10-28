@@ -17,7 +17,7 @@
 int main (void) 
 {
 	int fd;
-	char buff[256]="QWERTYUIOPasdfghjklZXCVBNM";
+	char buff[256]="QWERTYUIOP-asdfghjkl-ZXCVBNM";
 	
 	fd = open ("/dev/toggle-case",O_RDWR);
 	if (fd < 0) 
