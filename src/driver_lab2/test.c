@@ -26,17 +26,17 @@ int main (void)
 	  exit(-1);
 	}
 
-	printf ("\n/dev/hello opened, fd=%d\n",fd);
+	printf ("\n/dev/toggle-case opened, fd=%d\n",fd);
 	printf ("buf to write is:\n%s\n", buff);
 	
-	if (write (fd, buff, strlen(buff) + 1) < 0)
+	if (write (fd, buff, strlen((char *)buff) + 1) < 0)
 	{
 		perror("fail to write");
 		close(fd);
 		exit(-1);
 	}
    
-	if (read (fd, buff, strlen(buff) + 1) < 0)
+	if (read (fd, buff, strlen((char *)buff) + 1) < 0)
 	{
 		perror("fail to write");
 		close(fd);
@@ -45,7 +45,7 @@ int main (void)
 
 	printf ("buf read is:\n%s\n", buff);
 	close (fd);
-	printf ("/dev/hello closed :)\n");
+	printf ("/dev/toggle-case closed :)\n");
 
 	return 0;
 }
